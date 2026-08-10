@@ -1,0 +1,12 @@
+Options +Indexes
+
+DirectoryIndex index.php index.html
+
+<IfModule LiteSpeed>
+  CacheEnable public /
+  LSCacheDefaultExpires 3600
+
+  <FilesMatch "\.(css|js|png|jpg|jpeg|gif|ico|svg|woff2)$">
+    Header set Cache-Control "max-age=604800, public"
+  </FilesMatch>
+</IfModule>

@@ -1,0 +1,99 @@
+services:
+  web:
+    image: litespeedtech/openlitespeed:1.9.1-lsphp85
+    container_name: xampp_litespeed
+    restart: always
+    ports:
+      - "80:80"
+      - "7080:7080"
+    environment:
+      OLS_ADMIN_PASSWORD: "litespeed-admin"
+    volumes:
+      - ./:/var/www/vhosts/localhost/html
+      - ./.php.ini:/usr/local/lsws/lsphp85/etc/php/8.5/conf.d/99-custom.ini
+    depends_on:
+      - db
+      - redis
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  db:
+    image: mariadb:lts
+    container_name: xampp_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: my_db
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    command: >
+      --key_buffer_size=16M
+      --max_connections=30
+      --innodb_buffer_pool_size=128M
+      --innodb_log_buffer_size=2M
+      --innodb_file_per_table=1
+      --innodb_data_file_path=ibdata1:10M:autoextend:max:1000M
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  redis:
+    image: redis:alpine
+    container_name: xampp_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru --save ""
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: xampp_phpmyadmin
+    restart: always
+    ports:
+      - "8080:80"
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      MYSQL_ROOT_PASSWORD: root
+    depends_on:
+      - db
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+  ftp:
+    image: stilliard/pure-ftpd:latest
+    container_name: xampp_ftp
+    restart: always
+    ports:
+      - "21:21"
+      - "30000-30009:30000-30009"
+    environment:
+      FTP_USER_NAME: ftpuser
+      FTP_USER_PASS: ftppassword
+      FTP_USER_HOME: /home/ftpuser
+      PUBLICHOST: localhost
+    volumes:
+      - ./:/home/ftpuser
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+volumes:
+  db_data:
+  redis_data:
