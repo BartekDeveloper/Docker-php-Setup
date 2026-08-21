@@ -6,7 +6,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      - "127.0.0.1:7080:7080"
+      - "127.0.0.1:7090:7080"
     
     environment:
       - OLS_ADMIN_PASSWORD=${OLS_ADMIN_PASSWORD:-litespeed-admin}
