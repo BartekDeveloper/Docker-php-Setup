@@ -1,6 +1,7 @@
 ### Moje ###
 .env
 .env.local
+./ols/logs/
 
 # Rest created by https://www.toptal.com/developers/gitignore/api/phpunit,phpstorm+all,git,linux,macos,windows
 # Edit at https://www.toptal.com/developers/gitignore?templates=phpunit,phpstorm+all,linux,macos,windows
