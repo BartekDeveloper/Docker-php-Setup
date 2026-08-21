@@ -2,36 +2,62 @@ services:
   web:
     image: litespeedtech/openlitespeed:1.9.1-lsphp85
     container_name: xampp_litespeed
-    restart: always
+    restart: no
     ports:
       - "80:80"
-      - "7080:7080"
+      - "443:443"
+      - "127.0.0.1:7080:7080"
+    
     environment:
-      OLS_ADMIN_PASSWORD: "litespeed-admin"
+      - OLS_ADMIN_PASSWORD=${OLS_ADMIN_PASSWORD:-litespeed-admin}
+      - TZ=${TIMEZONE:-Europe/Warsaw}
+    
     volumes:
       - ./:/var/www/vhosts/localhost/html
       - ./.php.ini:/usr/local/lsws/lsphp85/etc/php/8.5/conf.d/99-custom.ini
+      - ./ols/logs:/usr/local/lsws/logs
+      - ./ols/conf:/usr/local/lsws/conf
+
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    
+    networks:
+        - app-network
+
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: ${OLS_MEMORY_LIMIT:-256M}
+        reservations:
+          memory: ${OLS_MEMORY_RESERVATION:-128M}
+  
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   db:
     image: mariadb:lts
     container_name: xampp_db
-    restart: always
+    restart: no
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: my_db
-      MYSQL_USER: user
-      MYSQL_PASSWORD: password
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${DB_DATABASE:-test-database}
+      MYSQL_USER: ${DB_USER:-user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-password}
+    
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"
+    
     volumes:
       - db_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    
     command: >
       --key_buffer_size=16M
       --max_connections=30
@@ -42,49 +68,88 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: ${DB_MEMORY_LIMIT:-256M}
+    
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-root}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+    networks:
+      - app-network
+
 
   redis:
     image: redis:alpine
     container_name: xampp_redis
-    restart: always
+    restart: no
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru --save ""
+    command: redis-server --maxmemory ${REDIS_MAX_MEMORY:-128m} --maxmemory-policy allkeys-lru --appendonly yes
     deploy:
       resources:
         limits:
-          memory: 128M
+          memory: ${REDIS_MEMORY_LIMIT:-128M}
+
+    networks:
+      - app-network
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
 
   phpmyadmin:
     image: phpmyadmin:latest
     container_name: xampp_phpmyadmin
-    restart: always
+    restart: no
     ports:
-      - "8080:80"
+      - "127.0.0.1:8080:80"
     environment:
       PMA_HOST: db
       PMA_PORT: 3306
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     deploy:
       resources:
         limits:
-          memory: 64M
+          memory: ${PHPMA_MEMORY_LIMIT:-256M}
+
+    networks:
+      - app-network
+  
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: xampp_mailpit
+    restart: no
+    ports:
+      - "127.0.0.1:8025:8025" # Web UI
+      - "1025:1025" # SMTP server
+    networks:
+      - app-network
+    deploy:
+      resources:
+        limits:
+          memory: ${MAILPIT_MEMORY_LIMIT:-32M}
 
   ftp:
     image: stilliard/pure-ftpd:latest
     container_name: xampp_ftp
-    restart: always
+    restart: no
     ports:
       - "21:21"
       - "30000-30009:30000-30009"
     environment:
-      FTP_USER_NAME: ftpuser
-      FTP_USER_PASS: ftppassword
+      FTP_USER_NAME: ${FTP_USER_NAME:-ftpuser}
+      FTP_USER_PASS: ${FTP_USER_PASS:-ftppassword}
       FTP_USER_HOME: /home/ftpuser
       PUBLICHOST: localhost
     volumes:
@@ -92,7 +157,15 @@ services:
     deploy:
       resources:
         limits:
-          memory: 64M
+          memory: ${FTP_MEMORY_LIMIT:-64M}
+      
+    networks:
+      - app-network
+
+
+networks:
+  app-network:
+    driver: bridge
 
 volumes:
   db_data:
